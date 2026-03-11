@@ -1,29 +1,28 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { heartbeat as serverHeartbeat } from "@/app/actions";
+
 import { DotCloud } from "./dot-cloud";
 import { Markers } from "./markers";
-import { ViewToggle } from "./view-toggle";
 import { atmosphereVertexShader } from "@/shaders/atmosphere-vertex";
 import { atmosphereFragmentShader } from "@/shaders/atmosphere-fragment";
-import type { VisitorLocation, VisitorGeo } from "@/lib/types";
+import type { VisitorLocation } from "@/lib/types";
+import { FLAT_SCALE } from "@/utils/projections";
 
-const FLAT_CAM_POS = new THREE.Vector3(0, 0, 6);
+const FLAT_CAM_POS = new THREE.Vector3(0, 0, 4);
 const ORIGIN = new THREE.Vector3(0, 0, 0);
 const LERP_SPEED = 6;
-const FLAT_DIST = 6;
+const FLAT_DIST = 4;
 const GLOBE_DIST = 3;
 const _dir = new THREE.Vector3();
-const BG_COLOR = new THREE.Color("#000000");
+const BG_COLOR = new THREE.Color("#010302");
+const PAN_MAX_X = 180 * FLAT_SCALE;
+const PAN_MAX_Y = 90 * FLAT_SCALE;
 
-const HEARTBEAT_INTERVAL = 30_000;
 
 interface SceneProps {
   targetMorph: number;
@@ -102,6 +101,20 @@ function Scene({
         controlsRef.current.update();
       }
     }
+
+    if (targetMorph < 0.5 && controlsRef.current) {
+      const t = controlsRef.current.target;
+      const cx = THREE.MathUtils.clamp(t.x, -PAN_MAX_X, PAN_MAX_X);
+      const cy = THREE.MathUtils.clamp(t.y, -PAN_MAX_Y, PAN_MAX_Y);
+      if (t.x !== cx || t.y !== cy) {
+        const dx = cx - t.x;
+        const dy = cy - t.y;
+        t.x = cx;
+        t.y = cy;
+        camera.position.x += dx;
+        camera.position.y += dy;
+      }
+    }
   });
 
   return (
@@ -134,7 +147,7 @@ function Scene({
       />
       <OrbitControls
         ref={controlsRef}
-        enablePan={false}
+        enablePan={targetMorph < 0.5}
         enableZoom
         minDistance={1.5}
         maxDistance={10}
@@ -143,92 +156,40 @@ function Scene({
         enableRotate={targetMorph > 0.5}
         autoRotate={autoRotate && targetMorph > 0.5}
         autoRotateSpeed={0.4}
+        screenSpacePanning
+        mouseButtons={{
+          LEFT: targetMorph < 0.5 ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.DOLLY,
+          RIGHT: THREE.MOUSE.PAN,
+        }}
       />
     </>
   );
 }
 
-function useVisitors() {
-  const data = useQuery(api.visitors.get);
-  const [selfGeo, setSelfGeo] = useState<VisitorGeo | null>(null);
-
-  useEffect(() => {
-    const send = async () => {
-      try {
-        const geo = await serverHeartbeat();
-        if (geo) setSelfGeo(geo);
-      } catch {
-        // offline
-      }
-    };
-    send();
-    const interval = setInterval(send, HEARTBEAT_INTERVAL);
-    return () => clearInterval(interval);
-  }, []);
-
-  const visitors = (data?.locations ?? []) as VisitorLocation[];
-  const total = data?.total ?? 0;
-
-  return { visitors, total, selfGeo };
+export interface GlobeClientProps {
+  visitors: VisitorLocation[];
+  total: number;
+  view: "flat" | "globe";
 }
 
-function OnlineBadge({ count }: { count: number }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: 16,
-        left: 16,
-        zIndex: 10,
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        background: "rgba(255,255,255,0.06)",
-        backdropFilter: "blur(12px)",
-        padding: "6px 14px",
-        border: "1px solid rgba(255,255,255,0.08)",
-      }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: "#22c55e",
-          boxShadow: "0 0 6px #22c55e",
-          animation: "pulse-dot 2s ease-in-out infinite",
-        }}
-      />
-      <span
-        style={{
-          fontSize: 12,
-          fontWeight: 500,
-          color: "rgba(255,255,255,0.7)",
-          letterSpacing: "0.02em",
-        }}
-      >
-        {count} online
-      </span>
-      <style>{`
-        @keyframes pulse-dot {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-export function GlobeClient() {
-  const [view, setView] = useState<"flat" | "globe">("globe");
+export function GlobeClient({ visitors, total, view }: GlobeClientProps) {
   const targetMorph = view === "globe" ? 1 : 0;
   const morphRef = useRef(view === "globe" ? 1 : 0);
   const [isDragging, setIsDragging] = useState(false);
-  const [autoRotate, setAutoRotate] = useState(true);
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [autoRotate, setAutoRotate] = useState(!prefersReducedMotion);
   const [ready, setReady] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { visitors, total } = useVisitors();
+  const dpr = useMemo<[number, number]>(() => {
+    if (typeof window === "undefined") return [2, 2];
+    const isMobile = window.matchMedia("(pointer: coarse)").matches;
+    const native = window.devicePixelRatio ?? 1;
+    return isMobile ? [2, Math.min(native, 2)] : [2, Math.min(native, 3)];
+  }, []);
 
   const handleReady = useCallback(() => setReady(true), []);
 
@@ -240,8 +201,10 @@ export function GlobeClient() {
 
   const handleInteractionEnd = useCallback(() => {
     setIsDragging(false);
-    idleTimer.current = setTimeout(() => setAutoRotate(true), 5000);
-  }, []);
+    if (!prefersReducedMotion) {
+      idleTimer.current = setTimeout(() => setAutoRotate(true), 5000);
+    }
+  }, [prefersReducedMotion]);
 
   return (
     <div
@@ -249,23 +212,10 @@ export function GlobeClient() {
         position: "relative",
         width: "100%",
         height: "100vh",
-        background: "#000",
+        background: "#010302",
         overflow: "hidden",
       }}
     >
-      <OnlineBadge count={total} />
-
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          right: 16,
-          zIndex: 10,
-        }}
-      >
-        <ViewToggle view={view} onToggle={setView} />
-      </div>
-
       <div
         style={{
           width: "100%",
@@ -276,17 +226,25 @@ export function GlobeClient() {
         }}
       >
         <Canvas
+          dpr={dpr}
           camera={{
-            position: [0, 0, view === "globe" ? 3 : 6],
+            position: [0, 0, view === "globe" ? 3 : 4],
             fov: 45,
             near: 0.1,
             far: 100,
           }}
-          gl={{ antialias: true, alpha: false }}
-          style={{ background: "#000" }}
+          gl={{
+            antialias: true,
+            alpha: false,
+            preserveDrawingBuffer: true,
+          }}
+          style={{ background: "#010302" }}
           onPointerDown={handleInteractionStart}
           onPointerUp={handleInteractionEnd}
           onPointerLeave={handleInteractionEnd}
+          onCreated={({ gl }) => {
+            gl.toneMapping = THREE.NoToneMapping;
+          }}
         >
           <Scene
             targetMorph={targetMorph}

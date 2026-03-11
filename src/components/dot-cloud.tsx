@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { generateLandDots, type DotData } from "@/utils/generateDots";
 import { flatPosition, spherePosition } from "@/utils/projections";
@@ -51,6 +51,7 @@ function buildGeometry(data: DotData) {
 
 export function DotCloud({ morphRef, dotDensity = 0.3 }: DotCloudProps) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const gl = useThree((s) => s.gl);
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null);
 
   useEffect(() => {
@@ -72,13 +73,15 @@ export function DotCloud({ morphRef, dotDensity = 0.3 }: DotCloudProps) {
   const [uniforms] = useState(() => ({
     uMorph: { value: 0 },
     uColor: { value: new THREE.Color("#6bc5a0") },
-    uPointSize: { value: 2.0 },
+    uPointSize: { value: 3.0 },
     uMaxDist: { value: 10.0 },
+    uDpr: { value: 1.0 },
   }));
 
   useFrame(() => {
     if (materialRef.current) {
       materialRef.current.uniforms.uMorph!.value = morphRef.current;
+      materialRef.current.uniforms.uDpr!.value = gl.getPixelRatio();
     }
   });
 
@@ -93,6 +96,7 @@ export function DotCloud({ morphRef, dotDensity = 0.3 }: DotCloudProps) {
         uniforms={uniforms}
         transparent
         depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
     </points>
   );

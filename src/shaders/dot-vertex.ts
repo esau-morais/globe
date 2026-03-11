@@ -3,6 +3,7 @@ attribute vec3 aFlatPosition;
 attribute vec3 aSpherePosition;
 uniform float uMorph;
 uniform float uPointSize;
+uniform float uDpr;
 
 varying float vDistToCamera;
 
@@ -12,6 +13,6 @@ void main() {
   gl_Position = projectionMatrix * mvPosition;
 
   vDistToCamera = -mvPosition.z;
-  gl_PointSize = uPointSize;
+  gl_PointSize = uPointSize * uDpr;
 }
 `;

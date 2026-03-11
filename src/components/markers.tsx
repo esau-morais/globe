@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useMemo, useState } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { flatPosition, spherePosition } from "@/utils/projections";
 import { markerVertexShader } from "@/shaders/marker-vertex";
@@ -16,6 +16,7 @@ interface MarkersProps {
 
 export function Markers({ morphRef, visitors, totalVisitors }: MarkersProps) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const gl = useThree((s) => s.gl);
 
   const geometry = useMemo(() => {
     if (visitors.length === 0) return null;
@@ -67,12 +68,14 @@ export function Markers({ morphRef, visitors, totalVisitors }: MarkersProps) {
     uSelfColor: { value: new THREE.Color("#a3e4c9") },
     uMaxDist: { value: 15.0 },
     uTime: { value: 0 },
+    uDpr: { value: 1.0 },
   }));
 
   useFrame((state) => {
     if (materialRef.current) {
       materialRef.current.uniforms.uMorph!.value = morphRef.current;
       materialRef.current.uniforms.uTime!.value = state.clock.elapsedTime;
+      materialRef.current.uniforms.uDpr!.value = gl.getPixelRatio();
     }
   });
 
