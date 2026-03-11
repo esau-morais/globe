@@ -5,7 +5,12 @@ import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConvexClientProvider } from "@/components/convex-client-provider";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  weight: "400",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Visitor Globe",
@@ -18,7 +23,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn("font-sans", geist.variable)}>
+    <html
+      lang="en"
+      className={cn("font-sans bg-[#010302] text-[#e5e5e5]", geist.variable)}
+    >
       <body>
         <ConvexClientProvider>
           <TooltipProvider>{children}</TooltipProvider>
