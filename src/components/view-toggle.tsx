@@ -14,46 +14,44 @@ interface ViewToggleProps {
 }
 
 const itemClass =
-  "border-none bg-transparent text-[#888] hover:bg-white/10 hover:text-white/80 aria-pressed:bg-white/90 aria-pressed:text-[#111] cursor-pointer transition-all duration-200";
+  "border-none bg-transparent text-[#888] hover:bg-white/10 hover:text-white/80 data-[state=on]:bg-white/90 data-[state=on]:text-[#111] cursor-pointer transition-colors duration-200 h-11 min-w-11";
 
 export function ViewToggle({ view, onToggle }: ViewToggleProps) {
   return (
     <ToggleGroup
-      value={[view]}
-      onValueChange={(values) => {
-        const next = values[0];
-        if (next === "flat" || next === "globe") {
-          onToggle(next);
+      type="single"
+      value={view}
+      onValueChange={(value) => {
+        if (value === "flat" || value === "globe") {
+          onToggle(value);
         }
       }}
-      className="gap-1 bg-white/8 p-1 backdrop-blur-sm"
+      className="gap-1.5 bg-white/8 p-1.5 backdrop-blur-sm"
     >
       <Tooltip>
-        <TooltipTrigger
-          render={
-            <ToggleGroupItem
-              value="flat"
-              aria-label="View regions on a flat map"
-              className={itemClass}
-            >
-              <MapTrifold className="size-4" />
-            </ToggleGroupItem>
-          }
-        />
+        <ToggleGroupItem
+          value="flat"
+          aria-label="View regions on a flat map"
+          className={itemClass}
+          asChild
+        >
+          <TooltipTrigger>
+            <MapTrifold className="size-5" />
+          </TooltipTrigger>
+        </ToggleGroupItem>
         <TooltipContent>View regions on a flat map</TooltipContent>
       </Tooltip>
       <Tooltip>
-        <TooltipTrigger
-          render={
-            <ToggleGroupItem
-              value="globe"
-              aria-label="View regions on a 3D globe"
-              className={itemClass}
-            >
-              <GlobeSimple className="size-4" />
-            </ToggleGroupItem>
-          }
-        />
+        <ToggleGroupItem
+          value="globe"
+          aria-label="View regions on a 3D globe"
+          className={itemClass}
+          asChild
+        >
+          <TooltipTrigger>
+            <GlobeSimple className="size-5" />
+          </TooltipTrigger>
+        </ToggleGroupItem>
         <TooltipContent>View regions on a 3D globe</TooltipContent>
       </Tooltip>
     </ToggleGroup>
